@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scheduler - Smart Calendar</title>
-    <link rel="stylesheet" href="style.css?v=1.1">
+    <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <meta name="theme-color" content="#6366f1">
@@ -79,6 +79,16 @@
                 <button class="btn-secondary" id="sync-modal-close">닫기</button>
                 <button class="btn-primary" id="sync-apply-btn">연결하기</button>
             </div>
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.5rem 0;">
+            <div class="form-group">
+                <label>파일 백업 및 GitHub 연동</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <button id="btn-export" class="btn-secondary" style="font-size: 0.8rem;">📥 데이터 내보내기</button>
+                    <button id="btn-import-trigger" class="btn-secondary" style="font-size: 0.8rem;">📤 파일 불러오기</button>
+                </div>
+                <input type="file" id="input-file-import" accept=".json" style="display: none;">
+                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">내보낸 파일을 <b>data.json</b>으로 저장해 GitHub에 올리면 모바일과 수동 동기화가 가능합니다.</p>
+            </div>
         </div>
     </div>
 
@@ -120,7 +130,7 @@
         </div>
     </div>
 
-    <script src="holidays.js?v=1.1"></script>
-    <script src="app.js?v=1.1"></script>
+    <script src="holidays.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

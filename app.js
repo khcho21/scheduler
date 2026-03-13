@@ -150,6 +150,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncCodeGenBtn = document.getElementById('sync-code-gen');
     const syncApplyBtn = document.getElementById('sync-apply-btn');
     const syncModalClose = document.getElementById('sync-modal-close');
+    
+    // File Sync UI Elements
+    const btnExport = document.getElementById('btn-export');
+    const btnImportTrigger = document.getElementById('btn-import-trigger');
+    const inputFileImport = document.getElementById('input-file-import');
 
     // --- Helper Functions ---
 
@@ -478,10 +483,73 @@ document.addEventListener('DOMContentLoaded', () => {
     prevMonthBtn.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); render(); };
     nextMonthBtn.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); render(); };
 
+    // --- File-based Backup & GitHub Sync ---
+
+    // 1. 데이터 내보내기 (JSON 다운로드)
+    btnExport.onclick = () => {
+        const dataStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'data.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert("데이터가 data.json 파일로 다운로드되었습니다.\n이 파일을 폴더에 넣고 GitHub에 올리면 모바일에서 불러올 수 있습니다.");
+    };
+
+    // 2. 데이터 가져오기 (파일 선택)
+    btnImportTrigger.onclick = () => inputFileImport.click();
+    inputFileImport.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const importedData = JSON.parse(event.target.result);
+                if (confirm("파일에서 데이터를 불러오시겠습니까? 기존 데이터와 합쳐집니다.")) {
+                    data = { ...data, ...importedData };
+                    saveData();
+                    alert("데이터를 성공적으로 불러왔습니다!");
+                }
+            } catch (err) {
+                alert("올바른 JSON 파일이 아닙니다.");
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    // 3. 서버(GitHub)에 있는 data.json 자동 감지
+    async function checkServerData() {
+        try {
+            const response = await fetch('./data.json', { cache: 'no-store' });
+            if (response.ok) {
+                const serverData = await response.json();
+                const serverStr = JSON.stringify(serverData);
+                const localStr = JSON.stringify(data);
+
+                if (serverStr !== localStr) {
+                    if (confirm("GitHub 서버에서 새로운 데이터 파일(data.json)이 감지되었습니다. 업데이트하시겠습니까? (기존 데이터 유지하며 병합)")) {
+                        data = { ...data, ...serverData };
+                        saveData();
+                    }
+                }
+            }
+        } catch (e) {
+            // data.json이 없으면 조용히 넘어감
+        }
+    }
+
     render();
 
     // 초기 실행 시 동기화 코드 있으면 시작
     if (syncCode) {
         initFirebase();
     }
+    
+    // 2초 후 서버 데이터(data.json) 한번 체크
+    setTimeout(checkServerData, 2000);
 });
