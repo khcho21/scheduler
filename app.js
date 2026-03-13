@@ -38,36 +38,53 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!syncStatusIndicator) return;
         switch(status) {
             case 'connected':
-                syncStatusIndicator.style.background = '#10b981'; // Green
+                syncStatusIndicator.style.background = '#10b981'; // 녹색: 성공
                 syncStatusIndicator.title = '동기화 연결됨';
                 break;
+            case 'connecting':
+                syncStatusIndicator.style.background = '#f59e0b'; // 노란색: 연결 중
+                syncStatusIndicator.title = '서버 연결 중...';
+                break;
             case 'error':
-                syncStatusIndicator.style.background = '#ef4444'; // Red
-                syncStatusIndicator.title = '동기화 오류';
+                syncStatusIndicator.style.background = '#ef4444'; // 빨간색: 오류
+                syncStatusIndicator.title = '연결 지연/오류 (네트워크 확인)';
                 break;
             default:
-                syncStatusIndicator.style.background = '#94a3b8'; // gray
+                syncStatusIndicator.style.background = '#94a3b8'; // 회색: 미설정
                 syncStatusIndicator.title = '동기화 미설정';
         }
     }
 
     function initFirebase() {
+        console.log('Firebase 연결 시도...');
         if (!window.firebase) {
-            console.error('Firebase SDK가 로드되지 않았습니다.');
             updateSyncStatus('error');
+            // SDK가 늦게 로드될 수도 있으므로 1초 후 재시도
+            setTimeout(initFirebase, 2000);
             return;
         }
+        
+        updateSyncStatus('connecting');
+
         if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+            try {
+                firebase.initializeApp(firebaseConfig);
+            } catch (err) {
+                console.error('Firebase 초기화 오류:', err);
+                updateSyncStatus('error');
+                return;
+            }
         }
         isSyncEnabled = true;
         
-        // 연결 상태 감시 (.info/connected 는 Firebase 자체 기능)
+        // 연결 상태 감시 (실시간 피드백)
         firebase.database().ref(".info/connected").on("value", (snap) => {
             if (snap.val() === true) {
+                console.log('Firebase 서버와 실시간 통신 성공!');
                 updateSyncStatus('connected');
             } else {
-                updateSyncStatus('error');
+                console.warn('Firebase 서버와 연결이 끊겼습니다.');
+                updateSyncStatus('connecting'); // 끊기면 다시 연결 시도 상태로
             }
         });
 
