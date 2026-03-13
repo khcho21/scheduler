@@ -28,10 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
         databaseURL: "https://gigascheduler-default-rtdb.firebaseio.com"
     };
 
-    if (syncCode) {
-        initFirebase();
-    }
-
     const syncStatusIndicator = document.getElementById('sync-status-indicator');
 
     function updateSyncStatus(status) {
@@ -78,31 +74,48 @@ document.addEventListener('DOMContentLoaded', () => {
         isSyncEnabled = true;
         
         // 연결 상태 감시 (실시간 피드백)
+        let connectionTimeout = setTimeout(() => {
+            if (syncStatusIndicator.style.background.includes('rgb(245, 158, 11)')) { // Still yellow
+                console.warn('연결 지연 중... 테더링 네트워크 확인 필요');
+                updateSyncStatus('error');
+            }
+        }, 10000); // 10초 후에도 노란색이면 빨간색으로 변경
+
         firebase.database().ref(".info/connected").on("value", (snap) => {
             if (snap.val() === true) {
+                clearTimeout(connectionTimeout);
                 console.log('Firebase 서버와 실시간 통신 성공!');
                 updateSyncStatus('connected');
             } else {
                 console.warn('Firebase 서버와 연결이 끊겼습니다.');
-                updateSyncStatus('connecting'); // 끊기면 다시 연결 시도 상태로
+                // 즉시 에러로 바꾸지 않고 노란색으로 대기
+                updateSyncStatus('connecting');
             }
         });
 
         const dbRef = firebase.database().ref('users/' + syncCode);
+        
+        // 원격 데이터 수신 로직 강화
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
             if (remoteData) {
-                // 데이터 병합 시 루프 방지를 위해 로컬과 다를 때만 업데이트
+                console.log('클라우드 데이터 확인됨');
                 const remoteStr = JSON.stringify(remoteData);
                 const localStr = JSON.stringify(data);
+                
                 if (remoteStr !== localStr) {
-                    data = { ...data, ...remoteData };
+                    // 삭제된 데이터가 있을 수 있으므로 단순 병합 대신 원격 우선 적용하되 로컬 새 데이터 보존
+                    data = { ...remoteData, ...data }; 
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                     render();
                 }
             }
+        }, (error) => {
+            console.error('Firebase 읽기 권한 오류:', error);
+            updateSyncStatus('error');
         });
 
+        // 초기 데이터 업로드 보장
         dbRef.once('value').then(snap => {
             if (!snap.exists() && Object.keys(data).length > 0) {
                 dbRef.set(data);
@@ -466,4 +479,9 @@ document.addEventListener('DOMContentLoaded', () => {
     nextMonthBtn.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); render(); };
 
     render();
+
+    // 초기 실행 시 동기화 코드 있으면 시작
+    if (syncCode) {
+        initFirebase();
+    }
 });
