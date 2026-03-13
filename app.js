@@ -32,34 +32,62 @@ document.addEventListener('DOMContentLoaded', () => {
         initFirebase();
     }
 
+    const syncStatusIndicator = document.getElementById('sync-status-indicator');
+
+    function updateSyncStatus(status) {
+        if (!syncStatusIndicator) return;
+        switch(status) {
+            case 'connected':
+                syncStatusIndicator.style.background = '#10b981'; // Green
+                syncStatusIndicator.title = '동기화 연결됨';
+                break;
+            case 'error':
+                syncStatusIndicator.style.background = '#ef4444'; // Red
+                syncStatusIndicator.title = '동기화 오류';
+                break;
+            default:
+                syncStatusIndicator.style.background = '#94a3b8'; // gray
+                syncStatusIndicator.title = '동기화 미설정';
+        }
+    }
+
     function initFirebase() {
         if (!window.firebase) {
             console.error('Firebase SDK가 로드되지 않았습니다.');
+            updateSyncStatus('error');
             return;
         }
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
         isSyncEnabled = true;
-        console.log('Firebase 초기화 성공, 동기화 코드:', syncCode);
         
-        // 원격 데이터 변경 감지 및 동기화
+        // 연결 상태 감시 (.info/connected 는 Firebase 자체 기능)
+        firebase.database().ref(".info/connected").on("value", (snap) => {
+            if (snap.val() === true) {
+                updateSyncStatus('connected');
+            } else {
+                updateSyncStatus('error');
+            }
+        });
+
         const dbRef = firebase.database().ref('users/' + syncCode);
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
             if (remoteData) {
-                console.log('원격 데이터 수신 완료');
-                // 로컬 데이터와 원격 데이터 병합 (날짜별 최신 데이터 우선)
-                data = { ...data, ...remoteData };
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-                render();
+                // 데이터 병합 시 루프 방지를 위해 로컬과 다를 때만 업데이트
+                const remoteStr = JSON.stringify(remoteData);
+                const localStr = JSON.stringify(data);
+                if (remoteStr !== localStr) {
+                    data = { ...data, ...remoteData };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                    render();
+                }
             }
         });
 
-        // 초기 접속 시 한번 강제 푸시 (데이터 유실 방지)
         dbRef.once('value').then(snap => {
-            if (!snap.exists()) {
-                console.log('원격에 데이터가 없어 로컬 데이터를 업로드합니다.');
+            if (!snap.exists() && Object.keys(data).length > 0) {
                 dbRef.set(data);
             }
         });
