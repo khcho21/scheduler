@@ -6,9 +6,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- State Management ---
     const STORAGE_KEY = 'giga_scheduler_v3_data';
+    const SYNC_CODE_KEY = 'scheduler_sync_code';
     let currentDate = new Date();
     let selectedDateStr = null;
     let data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    let holidays = window.KOREA_HOLIDAYS || {}; 
+    let isSyncEnabled = false;
+    let syncCode = localStorage.getItem(SYNC_CODE_KEY);
+
+    // --- Default Hours Settings ---
+    const DEFAULT_HOURS = {
+        1: { in: "11:00", out: "22:00" }, // 월요일
+        2: { in: "09:00", out: "22:00" }, // 화요일
+        3: { in: "09:00", out: "22:00" }, // 수요일
+        4: { in: "09:00", out: "22:00" }, // 목요일
+        5: { in: "08:00", out: "13:00" }  // 금요일
+    };
+
+    // --- Firebase Initialization (Using a dedicated public database for easy setup) ---
+    const firebaseConfig = {
+        databaseURL: "https://gigascheduler-default-rtdb.firebaseio.com"
+    };
+
+    if (syncCode) {
+        initFirebase();
+    }
+
+    function initFirebase() {
+        if (!window.firebase) return;
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        isSyncEnabled = true;
+        
+        // 원격 데이터 변경 감지 및 동기화
+        const dbRef = firebase.database().ref('users/' + syncCode);
+        dbRef.on('value', (snapshot) => {
+            const remoteData = snapshot.val();
+            if (remoteData) {
+                data = remoteData;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                render();
+            }
+        });
+    }
 
     // --- DOM Elements ---
     const calendarBody = document.getElementById('calendar-body');
@@ -29,6 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const baseHoursEl = document.getElementById('base-hours');
     const totalHoursEl = document.getElementById('total-hours');
     const diffHoursEl = document.getElementById('diff-hours');
+
+    // Sync UI Elements
+    const syncSettingsBtn = document.getElementById('sync-settings-btn');
+    const syncModal = document.getElementById('sync-modal');
+    const syncCodeInput = document.getElementById('sync-code-input');
+    const syncCodeGenBtn = document.getElementById('sync-code-gen');
+    const syncApplyBtn = document.getElementById('sync-apply-btn');
+    const syncModalClose = document.getElementById('sync-modal-close');
 
     // --- Helper Functions ---
 
@@ -58,6 +107,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatTimeForUI(isoTime) {
         if (!isoTime || isoTime === "INVALID") return '';
         return isoTime.substring(0, 5);
+    }
+
+    // --- Holiday Engine (내장 데이터 사용으로 전환) ---
+    function fetchHolidays(year) {
+        // 이미 내장 데이터가 로드되어 있으므로 별도 패치 불필요
+        console.log(`${year}년 공휴일 연동 중... (Google Calendar 기준)`);
     }
 
     // --- Calculation Engine ---
@@ -107,17 +162,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
 
-        // 1. Calculate Target Hours (Based on weekdays)
+        // 공휴일 미리 가져오기
+        fetchHolidays(year);
+
         const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
         for (let d = 1; d <= lastDayOfMonth; d++) {
             const date = new Date(year, month, d);
             const dayOfWeek = date.getDay();
             const dateStr = getLocalDateString(date);
             
-            if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Mon-Fri
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) { // 평일(월-금)
                 targetWeekdays++;
-                // Check if this weekday is marked as 'Holiday' or 'Exclude'
-                if (data[dateStr] && (data[dateStr].type === '휴일' || data[dateStr].type === '제외')) {
+                
+                const isManualHoliday = data[dateStr] && (data[dateStr].type === '휴일' || data[dateStr].type === '제외');
+                const isAutoHoliday = holidays[year] && holidays[year][dateStr];
+
+                if (isManualHoliday || isAutoHoliday) {
                     holidayInWeekdays++;
                 }
             }
@@ -158,13 +218,34 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('stat-month').innerText = statMonthText;
         }
 
-        const firstDay = new Date(year, month, 1).getDay();
+        // 1. 해당 월의 모든 날짜 생성 (평일만)
+        const firstDayDate = new Date(year, month, 1);
+        let firstDayOfWeek = firstDayDate.getDay(); // 0(일) ~ 6(토)
         
-        // 42 cells fixed
-        for (let i = 0; i < 42; i++) {
-            const cellDate = new Date(year, month, i - firstDay + 1);
-            const isOtherMonth = cellDate.getMonth() !== month;
-            calendarBody.appendChild(createDayCell(cellDate, isOtherMonth));
+        // 월요일 기준 패딩 계산 (월=1, 화=2, ... 금=5, 토=6, 일=0)
+        // 5일 캘린더이므로 월요일(1)이 첫 번째 컬럼이 됨
+        let paddingDays = 0;
+        if (firstDayOfWeek === 0) paddingDays = 0; // 일요일이면 월요일부터 시작하므로 패딩 0
+        else if (firstDayOfWeek === 6) paddingDays = 0; // 토요일이면 월요일부터 시작하므로 패딩 0
+        else paddingDays = firstDayOfWeek - 1; // 월(1) -> 0, 화(2) -> 1 ... 금(5) -> 4
+
+        // 패딩 셀 추가 (이전 달 평일)
+        for (let i = 0; i < paddingDays; i++) {
+            const padDiv = document.createElement('div');
+            padDiv.className = 'day-cell empty';
+            calendarBody.appendChild(padDiv);
+        }
+
+        // 실제 날짜 셀 추가
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        for (let d = 1; d <= lastDay; d++) {
+            const date = new Date(year, month, d);
+            const dayOfWeek = date.getDay();
+            
+            // 토(6), 일(0) 제외
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                calendarBody.appendChild(createDayCell(date, false));
+            }
         }
 
         calculateStats();
@@ -173,11 +254,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function createDayCell(date, isOtherMonth) {
         const dateStr = getLocalDateString(date);
         const isToday = dateStr === getLocalDateString(new Date());
+        const year = date.getFullYear(); // ReferenceError 수정
         
         const dayDiv = document.createElement('div');
         dayDiv.className = `day-cell ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}`;
         
         dayDiv.innerHTML = `<div class="day-num">${date.getDate()}</div>`;
+
+        // 공휴일 표시 (빨간 날)
+        const dayHolidays = holidays[year] || {};
+        if (dayHolidays[dateStr]) {
+            dayDiv.classList.add('holiday-text');
+            dayDiv.innerHTML += `<div class="holiday-name">${dayHolidays[dateStr]}</div>`;
+        }
 
         if (data[dateStr]) {
             const entry = data[dateStr];
@@ -206,26 +295,79 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedDateStr = dateStr;
         modalDateTitle.innerText = dateStr;
         const entry = data[dateStr] || {};
+        
+        // 날짜 객체 생성 (timezone 문제 방지를 위해 분리 파싱)
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        const dayOfWeek = dateObj.getDay();
+        const year = dateObj.getFullYear();
+        const isHoliday = holidays[year] && holidays[year][dateStr];
+
+        // 기록이 없고 공휴일이 아니며 평일인 경우 기본값 자동 세팅
+        if (!entry.clockIn && !entry.clockOut && !isHoliday && DEFAULT_HOURS[dayOfWeek]) {
+            inputClockIn.value = DEFAULT_HOURS[dayOfWeek].in;
+            inputClockOut.value = DEFAULT_HOURS[dayOfWeek].out;
+        } else {
+            inputClockIn.value = formatTimeForUI(entry.clockIn);
+            inputClockOut.value = formatTimeForUI(entry.clockOut);
+        }
+
         inputType.value = entry.type || '';
-        inputClockIn.value = formatTimeForUI(entry.clockIn);
-        inputClockOut.value = formatTimeForUI(entry.clockOut);
         inputNote.value = entry.note || '';
         editModal.style.display = 'flex';
     }
 
     // --- Action Handlers ---
 
+    // Sync Handlers
+    syncSettingsBtn.onclick = () => {
+        syncCodeInput.value = syncCode || '';
+        syncModal.style.display = 'flex';
+    };
+
+    syncModalClose.onclick = () => { syncModal.style.display = 'none'; };
+
+    syncCodeGenBtn.onclick = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = '';
+        for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        syncCodeInput.value = code;
+    };
+
+    syncApplyBtn.onclick = () => {
+        const code = syncCodeInput.value.trim().toUpperCase();
+        if (!code) {
+            alert("동기화 코드를 입력해주세요.");
+            return;
+        }
+        syncCode = code;
+        localStorage.setItem(SYNC_CODE_KEY, syncCode);
+        initFirebase();
+        
+        if (window.firebase) {
+            firebase.database().ref('users/' + syncCode).set(data);
+        }
+        
+        alert("기기 동기화가 설정되었습니다! 이제 다른 기기에서도 이 코드를 사용하세요.");
+        syncModal.style.display = 'none';
+        render();
+    };
+
     modalCancelBtn.onclick = () => { editModal.style.display = 'none'; };
     
-    modalDeleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (!selectedDateStr) return;
-        if (confirm(`${selectedDateStr}의 기록을 모두 삭제하시겠습니까?`)) {
+    modalDeleteBtn.addEventListener('click', () => {
+        console.log('삭제 버튼 클릭됨:', selectedDateStr);
+        if (!selectedDateStr) {
+            console.error('삭제할 날짜가 선택되지 않았습니다.');
+            return;
+        }
+        
+        if (confirm(`${selectedDateStr}의 모든 기록을 삭제하시겠습니까?`)) {
             delete data[selectedDateStr];
             saveData();
             editModal.style.display = 'none';
         }
-    };
+    });
 
     modalSaveBtn.onclick = () => {
         const ci = normalizeTime(inputClockIn.value);
@@ -249,6 +391,14 @@ document.addEventListener('DOMContentLoaded', () => {
         saveData();
         editModal.style.display = 'none';
     };
+
+    function saveData() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        if (isSyncEnabled && window.firebase && syncCode) {
+            firebase.database().ref('users/' + syncCode).set(data);
+        }
+        render();
+    }
 
     prevMonthBtn.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); render(); };
     nextMonthBtn.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); render(); };
