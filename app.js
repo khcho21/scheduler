@@ -33,20 +33,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initFirebase() {
-        if (!window.firebase) return;
+        if (!window.firebase) {
+            console.error('Firebase SDK가 로드되지 않았습니다.');
+            return;
+        }
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
         isSyncEnabled = true;
+        console.log('Firebase 초기화 성공, 동기화 코드:', syncCode);
         
         // 원격 데이터 변경 감지 및 동기화
         const dbRef = firebase.database().ref('users/' + syncCode);
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
             if (remoteData) {
-                data = remoteData;
+                console.log('원격 데이터 수신 완료');
+                // 로컬 데이터와 원격 데이터 병합 (날짜별 최신 데이터 우선)
+                data = { ...data, ...remoteData };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                 render();
+            }
+        });
+
+        // 초기 접속 시 한번 강제 푸시 (데이터 유실 방지)
+        dbRef.once('value').then(snap => {
+            if (!snap.exists()) {
+                console.log('원격에 데이터가 없어 로컬 데이터를 업로드합니다.');
+                dbRef.set(data);
             }
         });
     }
@@ -395,7 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveData() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         if (isSyncEnabled && window.firebase && syncCode) {
-            firebase.database().ref('users/' + syncCode).set(data);
+            console.log('데이터를 클라우드로 푸시합니다...');
+            firebase.database().ref('users/' + syncCode).set(data)
+                .then(() => console.log('동기화 완료'))
+                .catch(err => console.error('동기화 실패:', err));
         }
         render();
     }
