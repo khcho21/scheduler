@@ -6,6 +6,7 @@ const ASSETS = [
     './app.js',
     './holidays.js',
     './manifest.json',
+    './icon.png',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap'
 ];
 
