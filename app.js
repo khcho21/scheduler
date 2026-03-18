@@ -113,18 +113,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const dbRef = firebase.database().ref('users/' + syncCode);
         
-        // 원격 데이터 수신 로직 강화
+        // 원격 데이터 수신 로직 (삭제 동기화 지원)
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
             if (remoteData) {
-                console.log('클라우드 데이터 확인됨');
+                console.log('클라우드 데이터 수신, 병합 시작...');
                 const prevDataStr = JSON.stringify(data);
                 
-                // 타임스탬프 기반 병합 로직 적용
-                data = mergeData(data, remoteData);
+                // 원격 데이터를 기준으로 스마트 병합
+                // 1. 원격에 있는 키: updatedAt이 더 최신인 것을 선택
+                // 2. 로컬에만 있는 키: 최근 30초 안에 수정된 경우 유지 (아직 업로드 안 된 경우)
+                //    → 그 외에는 삭제된 것으로 간주하여 제거
+                const now = Date.now();
+                const merged = { ...remoteData }; // 원격 데이터를 기준으로 시작
+                
+                for (const key in data) {
+                    if (key.startsWith('_')) continue; // 설정값은 별도 처리
+                    if (!remoteData[key]) {
+                        // 원격에 없는 키: 로컬에서 30초 이내에 수정된 경우만 유지
+                        const localUpdatedAt = data[key].updatedAt || 0;
+                        if (now - localUpdatedAt < 30000) {
+                            merged[key] = data[key]; // 아직 업로드 안 된 최신 데이터 유지
+                        }
+                        // 30초 이상 지났으면 원격에서 삭제된 것으로 간주 → merged에 포함 안 함
+                    } else {
+                        // 로컬과 원격 모두 있는 경우: 더 최신 것 채택
+                        const localT = data[key].updatedAt || 0;
+                        const remoteT = remoteData[key].updatedAt || 0;
+                        if (localT > remoteT) {
+                            merged[key] = data[key];
+                        }
+                    }
+                }
+                
+                // _config는 별도로 처리 (더 최신 것 채택)
+                if (remoteData._config) {
+                    const localT = (data._config && data._config.updatedAt) || 0;
+                    const remoteT = remoteData._config.updatedAt || 0;
+                    merged._config = localT > remoteT ? data._config : remoteData._config;
+                } else {
+                    merged._config = data._config;
+                }
+                
+                data = merged;
                 
                 if (JSON.stringify(data) !== prevDataStr) {
-                    console.log('데이터 병합 및 로컬 저장');
+                    console.log('데이터 병합 완료, 로컬 저장 및 화면 갱신');
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                     render();
                 }
