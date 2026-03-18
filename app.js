@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Firebase Initialization (Using a dedicated public database for easy setup) ---
     const firebaseConfig = {
-        databaseURL: "https://realtime-database-1c2ae-default-rtdb.firebaseio.com"
+        databaseURL: "https://realtime-database-1c2ae-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
 
     const syncStatusIndicator = document.getElementById('sync-status-indicator');
