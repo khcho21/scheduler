@@ -583,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         alert("기기 동기화가 설정되었습니다! 이제 다른 기기에서도 이 코드를 사용하세요.");
-        syncModal.style.display = 'none';
+        if (syncModal) syncModal.style.display = 'none';
         render();
     };
 
