@@ -54,9 +54,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function initFirebase() {
         console.log('Firebase 연결 시도...');
         if (!window.firebase) {
-            updateSyncStatus('error');
+            console.warn('Firebase SDK 기다리는 중...');
+            updateSyncStatus('connecting');
             // SDK가 늦게 로드될 수도 있으므로 1초 후 재시도
-            setTimeout(initFirebase, 2000);
+            setTimeout(initFirebase, 1000);
             return;
         }
         
@@ -95,17 +96,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const dbRef = firebase.database().ref('users/' + syncCode);
         
+        // 데이터 병합 함수 (타임스탬프 기반)
+        function mergeData(local, remote) {
+            const merged = { ...local };
+            for (const key in remote) {
+                // 로컬에 해당 날짜 기록이 없거나, 원격의 수정 시간이 더 최신인 경우에만 덮어씀
+                if (!local[key] || (remote[key].updatedAt || 0) > (local[key].updatedAt || 0)) {
+                    merged[key] = remote[key];
+                }
+            }
+            return merged;
+        }
+
         // 원격 데이터 수신 로직 강화
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
             if (remoteData) {
                 console.log('클라우드 데이터 확인됨');
-                const remoteStr = JSON.stringify(remoteData);
-                const localStr = JSON.stringify(data);
+                const prevDataStr = JSON.stringify(data);
                 
-                if (remoteStr !== localStr) {
-                    // 삭제된 데이터가 있을 수 있으므로 단순 병합 대신 원격 우선 적용하되 로컬 새 데이터 보존
-                    data = { ...remoteData, ...data }; 
+                // 타임스탬프 기반 병합 로직 적용
+                data = mergeData(data, remoteData);
+                
+                if (JSON.stringify(data) !== prevDataStr) {
+                    console.log('데이터 병합 및 로컬 저장');
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                     render();
                 }
@@ -226,10 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Logic ---
 
-    function saveData() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        render();
-    }
+    // (중복 선언 방지를 위해 하단으로 통합 이동됨)
 
     function calculateStats() {
         let totalSeconds = 0;
@@ -325,7 +336,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        calculateStats();
+        try {
+            calculateStats();
+        } catch (e) {
+            console.error('통계 계산 오류:', e);
+        }
     }
 
     function createDayCell(date, isOtherMonth) {
@@ -441,7 +456,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (confirm(`${selectedDateStr}의 모든 기록을 삭제하시겠습니까?`)) {
             delete data[selectedDateStr];
-            saveData();
+            
+            // 삭제 시 클라우드에서도 해당 노드 제거
+            if (isSyncEnabled && window.firebase && syncCode) {
+                firebase.database().ref('users/' + syncCode).child(selectedDateStr).remove()
+                    .then(() => console.log('클라우드 데이터 삭제 완료'))
+                    .catch(err => console.error('클라우드 삭제 실패:', err));
+            }
+            
+            saveData(false); // 로컬 저장 및 렌더링 (클라우드 전체 푸시는 생략)
             editModal.style.display = 'none';
         }
     });
@@ -460,22 +483,37 @@ document.addEventListener('DOMContentLoaded', () => {
         data[selectedDateStr].clockIn = ci;
         data[selectedDateStr].clockOut = co;
         data[selectedDateStr].note = inputNote.value;
+        data[selectedDateStr].updatedAt = Date.now(); // 수정 시간 기록
         
         if (!inputType.value && !ci && !co && !inputNote.value) {
             delete data[selectedDateStr];
+            // 삭제 로직은 별도의 삭제 버튼에서 처리하지만, 여기서도 삭제 처리 시 클라우드 반영 필요할 수 있음
         }
 
-        saveData();
+        saveData(selectedDateStr); // 변경된 날짜만 동기화
         editModal.style.display = 'none';
     };
 
-    function saveData() {
+    // targetDateStr이 인자로 오면 해당 날짜만 부분 업데이트, 없으면 전체 데이터 업로드
+    function saveData(targetDateStr = null) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        
         if (isSyncEnabled && window.firebase && syncCode) {
-            console.log('데이터를 클라우드로 푸시합니다...');
-            firebase.database().ref('users/' + syncCode).set(data)
-                .then(() => console.log('동기화 완료'))
-                .catch(err => console.error('동기화 실패:', err));
+            const dbRef = firebase.database().ref('users/' + syncCode);
+            
+            if (targetDateStr && data[targetDateStr]) {
+                console.log(`${targetDateStr} 데이터만 부분 동기화 중...`);
+                dbRef.child(targetDateStr).update(data[targetDateStr])
+                    .catch(err => console.error('부분 동기화 실패:', err));
+            } else if (targetDateStr === false) {
+                // 단순 로컬 저장용 (삭제 등 이미 처리된 경우)
+                console.log('로컬 저장 완료');
+            } else {
+                console.log('전체 데이터를 클라우드로 푸시합니다...');
+                dbRef.set(data)
+                    .then(() => console.log('전체 동기화 완료'))
+                    .catch(err => console.error('전체 동기화 실패:', err));
+            }
         }
         render();
     }
@@ -510,8 +548,8 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = (event) => {
             try {
                 const importedData = JSON.parse(event.target.result);
-                if (confirm("파일에서 데이터를 불러오시겠습니까? 기존 데이터와 합쳐집니다.")) {
-                    data = { ...data, ...importedData };
+                if (confirm("파일에서 데이터를 불러오시겠습니까? 기존 데이터와 합쳐집니다. (최신 수정본 우선)")) {
+                    data = mergeData(data, importedData);
                     saveData();
                     alert("데이터를 성공적으로 불러왔습니다!");
                 }
@@ -532,8 +570,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const localStr = JSON.stringify(data);
 
                 if (serverStr !== localStr) {
-                    if (confirm("GitHub 서버에서 새로운 데이터 파일(data.json)이 감지되었습니다. 업데이트하시겠습니까? (기존 데이터 유지하며 병합)")) {
-                        data = { ...data, ...serverData };
+                    if (confirm("GitHub 서버에서 새로운 데이터 파일(data.json)이 감지되었습니다. 업데이트하시겠습니까? (최신 수정본 우선 병합)")) {
+                        // 타임스탬프 기반 병합 적용
+                        data = mergeData(data, serverData);
                         saveData();
                     }
                 }
