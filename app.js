@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Firebase Initialization (Using a dedicated public database for easy setup) ---
     const firebaseConfig = {
-        databaseURL: "https://gigascheduler-default-rtdb.firebaseio.com"
+        databaseURL: "https://realtime-database-1c2ae-default-rtdb.firebaseio.com"
     };
 
     const syncStatusIndicator = document.getElementById('sync-status-indicator');
