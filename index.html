@@ -57,9 +57,10 @@
                 <h3>이월/총 연차</h3>
                 <div class="value" id="vacation-total">0d</div>
             </div>
-            <div class="card" style="background: linear-gradient(135deg, #10b981, #3b82f6);">
+            <div class="card" style="background: linear-gradient(135deg, #10b981, #3b82f6); cursor: pointer;" id="btn-vacation-detail">
                 <h3>잔여 휴가</h3>
                 <div class="value" id="vacation-remaining">0d</div>
+                <div style="font-size: 0.7rem; opacity: 0.8; margin-top: 5px;">상세 보기 ></div>
             </div>
         </section>
 
@@ -85,7 +86,20 @@
     </div>
 
     <!-- Sync Settings Modal -->
-    <div id="sync-modal" class="modal-overlay">
+    <!-- 휴가 상세 내역 모달 -->
+    <div id="vacation-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="vacation-modal-title">2026년 휴가 사용 내역</h3>
+            </div>
+            <div id="vacation-list" style="max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 1rem; font-size: 0.9rem; line-height: 1.6;">
+                <!-- 내역이 여기에 동적으로 추가됨 -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="vacation-modal-close" style="grid-column: span 3;">닫기</button>
+            </div>
+        </div>
+    </div>
         <div class="modal animate-up">
             <h2>기기 간 동기화 설정</h2>
             <div class="form-group">
@@ -119,6 +133,21 @@
                     <button id="btn-vacation-save" class="btn-primary" style="flex: none; width: auto; padding: 0 1rem;">설정</button>
                 </div>
                 <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">총 연차(이월 휴가 포함)를 입력하면 잔여 휴가가 자동 계산됩니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 휴가 상세 내역 모달 -->
+    <div id="vacation-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="vacation-modal-title">2026년 휴가 사용 내역</h3>
+            </div>
+            <div id="vacation-list" style="max-height: 280px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 0.8rem; padding: 1.25rem; font-size: 0.95rem; line-height: 1.8; color: #f8fafc; margin-bottom: 1rem;">
+                <!-- 내역이 여기에 동적으로 추가됨 -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="vacation-modal-close" style="grid-column: span 3; padding: 1rem;">닫기</button>
             </div>
         </div>
     </div>

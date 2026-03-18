@@ -179,6 +179,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnVacationSave = document.getElementById('btn-vacation-save');
     const vacationTotalEl = document.getElementById('vacation-total');
     const vacationRemainingEl = document.getElementById('vacation-remaining');
+    const btnVacationDetail = document.getElementById('btn-vacation-detail');
+    const vacationModal = document.getElementById('vacation-modal');
+    const vacationModalTitle = document.getElementById('vacation-modal-title');
+    const vacationList = document.getElementById('vacation-list');
+    const vacationModalClose = document.getElementById('vacation-modal-close');
 
     // --- Helper Functions ---
 
@@ -514,6 +519,47 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     syncModalClose.onclick = () => { syncModal.style.display = 'none'; };
+
+    // Vacation Detail Modal Handlers
+    btnVacationDetail.onclick = () => {
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth(); // 0-based
+        vacationModalTitle.innerText = `${currentYear}년 ${currentMonth + 1}월까지 사용 내역`;
+        
+        let html = '';
+        let usedCount = 0;
+        let details = [];
+        
+        // 현재 로직과 동일하게 필터링하여 리스트 생성
+        Object.keys(data).sort().forEach(dateStr => {
+            if (dateStr.startsWith('_')) return;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            if (y === currentYear && (m-1) <= currentMonth) {
+                const entry = data[dateStr];
+                const type = entry.type || '';
+                if (type === '휴가') {
+                    details.push(`📅 ${dateStr}: <b style="color:#f43f5e">1.0일</b> (${type})`);
+                    usedCount += 1;
+                } else if (type === '반차' || type.includes('반차') || type === '휴가(4h)') {
+                    details.push(`📅 ${dateStr}: <b style="color:#0ea5e9">0.5일</b> (${type})`);
+                    usedCount += 0.5;
+                }
+            }
+        });
+        
+        if (details.length === 0) {
+            html = '<div style="text-align:center; opacity:0.5; padding:2rem;">기록된 휴가 내역이 없습니다.</div>';
+        } else {
+            html = details.join('<br>') + `<hr style="margin:1rem 0; border:0; border-top:1px solid rgba(255,255,255,0.1);"><b>합계: ${usedCount}일</b>`;
+        }
+        
+        vacationList.innerHTML = html;
+        vacationModal.style.display = 'flex';
+    };
+
+    vacationModalClose.onclick = () => {
+        vacationModal.style.display = 'none';
+    };
 
     syncCodeGenBtn.onclick = () => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
