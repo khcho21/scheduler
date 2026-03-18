@@ -617,7 +617,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (!data[selectedDateStr]) data[selectedDateStr] = {};
+        // 새 데이터 저장 시 tombstone 초기화 (삭제 후 재추가 지원)
+        if (!data[selectedDateStr] || data[selectedDateStr]._deleted) {
+            data[selectedDateStr] = {};
+        }
         data[selectedDateStr].type = inputType.value;
         data[selectedDateStr].clockIn = ci;
         data[selectedDateStr].clockOut = co;
