@@ -643,10 +643,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isSyncEnabled && window.firebase && syncCode) {
             const dbRef = firebase.database().ref('users/' + syncCode);
             
-            if (targetDateStr && data[targetDateStr]) {
-                console.log(`${targetDateStr} 데이터만 부분 동기화 중...`);
-                dbRef.child(targetDateStr).update(data[targetDateStr])
-                    .catch(err => console.error('부분 동기화 실패:', err));
+            if (targetDateStr && data[targetDateStr] !== undefined) {
+                console.log(`${targetDateStr} 데이터 동기화 중...`);
+                // .set()으로 노드 전체 교체 (tombstone 잔재 제거)
+                dbRef.child(targetDateStr).set(data[targetDateStr])
+                    .catch(err => console.error('동기화 실패:', err));
             } else if (targetDateStr === false) {
                 // 단순 로컬 저장용 (삭제 등 이미 처리된 경우)
                 console.log('로컬 저장 완료');
