@@ -13,6 +13,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let holidays = window.KOREA_HOLIDAYS || {}; 
     let isSyncEnabled = false;
     let syncCode = localStorage.getItem(SYNC_CODE_KEY);
+    
+    // --- Utility: 데이터 병합 함수 (타임스탬프 기반) ---
+    function mergeData(local, remote) {
+        if (!remote) return local;
+        const merged = { ...local };
+        for (const key in remote) {
+            // 로컬에 해당 날짜 기록이 없거나, 원격의 수정 시간이 더 최신인 경우에만 덮어씀
+            if (!local[key] || (remote[key].updatedAt || 0) > (local[key].updatedAt || 0)) {
+                merged[key] = remote[key];
+            }
+        }
+        return merged;
+    }
 
     // --- Default Hours Settings ---
     const DEFAULT_HOURS = {
@@ -96,18 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const dbRef = firebase.database().ref('users/' + syncCode);
         
-        // 데이터 병합 함수 (타임스탬프 기반)
-        function mergeData(local, remote) {
-            const merged = { ...local };
-            for (const key in remote) {
-                // 로컬에 해당 날짜 기록이 없거나, 원격의 수정 시간이 더 최신인 경우에만 덮어씀
-                if (!local[key] || (remote[key].updatedAt || 0) > (local[key].updatedAt || 0)) {
-                    merged[key] = remote[key];
-                }
-            }
-            return merged;
-        }
-
         // 원격 데이터 수신 로직 강화
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
