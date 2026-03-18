@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentDate = new Date();
     let selectedDateStr = null;
     let data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    if (!data._config) data._config = { vacationBudget: 0 }; // 설정 데이터 초기화
     let holidays = window.KOREA_HOLIDAYS || {}; 
     let isSyncEnabled = false;
     let syncCode = localStorage.getItem(SYNC_CODE_KEY);
@@ -171,6 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnImportTrigger = document.getElementById('btn-import-trigger');
     const inputFileImport = document.getElementById('input-file-import');
 
+    const inputVacationBudget = document.getElementById('input-vacation-budget');
+    const btnVacationSave = document.getElementById('btn-vacation-save');
+    const vacationTotalEl = document.getElementById('vacation-total');
+    const vacationRemainingEl = document.getElementById('vacation-remaining');
+
     // --- Helper Functions ---
 
     function getLocalDateString(date) {
@@ -294,6 +300,34 @@ document.addEventListener('DOMContentLoaded', () => {
         
         diffHoursEl.innerText = (diffS >= 0 ? '+' : '-') + `${diffH}h ${diffM}m`;
         diffHoursEl.style.color = diffS >= 0 ? '#10b981' : '#ef4444';
+
+        // 4. Calculate Vacation Stats
+        calculateVacationStats();
+    }
+
+    function calculateVacationStats() {
+        if (!vacationTotalEl || !vacationRemainingEl) return;
+
+        let usedDays = 0;
+        const currentYear = currentDate.getFullYear();
+        
+        // 데이터 전체를 순회하며 현재 연도의 휴가 사용량 합산
+        Object.keys(data).forEach(dateStr => {
+            if (dateStr.startsWith('_')) return; // 설정값 제외
+            
+            const [y, m, d] = dateStr.split('-').map(Number);
+            if (y === currentYear) {
+                const entry = data[dateStr];
+                if (entry.type === '휴가') usedDays += 1;
+                else if (entry.type === '반차') usedDays += 0.5;
+            }
+        });
+        
+        const budget = data._config.vacationBudget || 0;
+        const remaining = budget - usedDays;
+        
+        vacationTotalEl.innerText = `${budget}d`;
+        vacationRemainingEl.innerText = `${remaining}d`;
     }
 
     function render() {
@@ -415,7 +449,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sync Handlers
     syncSettingsBtn.onclick = () => {
         syncCodeInput.value = syncCode || '';
+        inputVacationBudget.value = data._config.vacationBudget || '';
         syncModal.style.display = 'flex';
+    };
+
+    btnVacationSave.onclick = () => {
+        const budget = parseFloat(inputVacationBudget.value) || 0;
+        data._config.vacationBudget = budget;
+        data._config.updatedAt = Date.now();
+        
+        // 설정 데이터도 클라우드에 즉시 동기화
+        if (isSyncEnabled && window.firebase && syncCode) {
+            firebase.database().ref('users/' + syncCode + '/_config').set(data._config)
+                .then(() => console.log('설정 데이터 동기화 완료'))
+                .catch(err => console.error('설정 동기화 실패:', err));
+        }
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        calculateStats();
+        alert("연차 정보가 설정되었습니다.");
     };
 
     syncModalClose.onclick = () => { syncModal.style.display = 'none'; };

@@ -1,0 +1,38 @@
+#!/bin/bash
+# ----------------------------------------------------------------
+# Scheduler Mac App FINAL LAUNCHER
+# 해결 과제: 1. 아이콘 튀는 현상 제거, 2. 빈 화면(연결 실패) 방지
+# ----------------------------------------------------------------
+
+# 1. 절대 경로 설정 (가장 안전한 방식)
+PROJECT_ROOT="/Users/khcho/진행/기가레인/Scheduler"
+PORT=9999
+
+# 2. 기존 서버 완전 소멸 (충돌 방지)
+lsof -ti :$PORT | xargs kill -9 2>/dev/null
+sleep 0.5
+
+# 3. 서버 구동 (Nohup + Disown: 부모가 죽어도 서버는 살려둠)
+cd "$PROJECT_ROOT" || exit 1
+# 로그를 임시 저장하여 문제 시 확인 가능하게 함
+nohup python3 -m http.server $PORT --bind 127.0.0.1 > /tmp/scheduler_srv.log 2>&1 &
+SERVER_PID=$!
+disown $SERVER_PID
+
+# 4. 서버 가동 대기 (충분한 시간 부여로 빈 화면 방지)
+sleep 1.5
+
+# 5. 브라우저 실행 (새 인스턴스 앱 모드)
+URL="http://127.0.0.1:$PORT/index.html"
+
+if [ -d "/Applications/Google Chrome.app" ]; then
+    # -n 옵션으로 기존 브라우저와 완전히 독립시킴
+    open -n -a "Google Chrome" --args --app="$URL"
+elif [ -d "/Applications/Microsoft Edge.app" ]; then
+    open -n -a "Microsoft Edge" --args --app="$URL"
+else
+    open "$URL"
+fi
+
+# 6. 즉시 종료 (핵심: 이 스크립트가 종료되어야 Mac 독의 아이콘 팡팡이 멈춤)
+exit 0
