@@ -456,28 +456,43 @@ document.addEventListener('DOMContentLoaded', () => {
         syncModal.style.display = 'flex';
     };
 
-    btnVacationSave.onclick = () => {
-        const val = inputVacationBudget.value.trim();
-        if (val === "") {
+    btnVacationSave.onclick = (e) => {
+        if (e) e.preventDefault();
+        
+        const val = inputVacationBudget.value ? inputVacationBudget.value.trim() : "";
+        if (!val) {
             alert("연차 일수를 입력해주세요.");
             return;
         }
         
         const budget = Number(val);
         if (isNaN(budget)) {
-            alert("숫자로 입력해주세요.");
+            alert("숫자로 올바르게 입력해주세요.");
             return;
         }
 
+        // 1. 내부 데이터 업데이트
         data._config.vacationBudget = budget;
         data._config.updatedAt = Date.now();
         
-        // 데이터 저장 및 클라우드 동기화 (saveData로 통합 호출)
-        saveData(); // 전체 데이터와 설정을 함께 동기화
+        // 2. 우선적으로 화면 갱신 및 모달 닫기 (사용자 반응성)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        calculateStats();
+        syncModal.style.display = 'none';
+        
+        // 3. 백그라운드에서 클라우드 동기화 시도
+        if (isSyncEnabled && window.firebase && syncCode) {
+            try {
+                const dbRef = firebase.database().ref('users/' + syncCode);
+                dbRef.set(data)
+                    .then(() => console.log('연차 정보 클라우드 동기화 완료'))
+                    .catch(err => console.error('연차 정보 동기화 실패:', err));
+            } catch (err) {
+                console.error('Firebase 접근 오류:', err);
+            }
+        }
         
         alert(`총 연차가 ${budget}일로 설정되었습니다.`);
-        syncModal.style.display = 'none';
-        render(); // 변경 사항 즉시 반영
     };
 
     syncModalClose.onclick = () => { syncModal.style.display = 'none'; };
