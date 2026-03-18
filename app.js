@@ -10,7 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentDate = new Date();
     let selectedDateStr = null;
     let data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    if (!data._config) data._config = { vacationBudget: 0 }; // 설정 데이터 초기화
+    // 설정 데이터 구조 보장 (기존 데이터 유지하며 부족한 필드만 채움)
+    if (!data._config) data._config = {};
+    if (data._config.vacationBudget === undefined) data._config.vacationBudget = 0;
+    
     let holidays = window.KOREA_HOLIDAYS || {}; 
     let isSyncEnabled = false;
     let syncCode = localStorage.getItem(SYNC_CODE_KEY);
@@ -454,20 +457,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     btnVacationSave.onclick = () => {
-        const budget = parseFloat(inputVacationBudget.value) || 0;
+        const val = inputVacationBudget.value.trim();
+        if (val === "") {
+            alert("연차 일수를 입력해주세요.");
+            return;
+        }
+        
+        const budget = Number(val);
+        if (isNaN(budget)) {
+            alert("숫자로 입력해주세요.");
+            return;
+        }
+
         data._config.vacationBudget = budget;
         data._config.updatedAt = Date.now();
         
-        // 설정 데이터도 클라우드에 즉시 동기화
-        if (isSyncEnabled && window.firebase && syncCode) {
-            firebase.database().ref('users/' + syncCode + '/_config').set(data._config)
-                .then(() => console.log('설정 데이터 동기화 완료'))
-                .catch(err => console.error('설정 동기화 실패:', err));
-        }
+        // 데이터 저장 및 클라우드 동기화 (saveData로 통합 호출)
+        saveData(); // 전체 데이터와 설정을 함께 동기화
         
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        calculateStats();
-        alert("연차 정보가 설정되었습니다.");
+        alert(`총 연차가 ${budget}일로 설정되었습니다.`);
+        syncModal.style.display = 'none';
+        render(); // 변경 사항 즉시 반영
     };
 
     syncModalClose.onclick = () => { syncModal.style.display = 'none'; };
