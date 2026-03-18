@@ -1,4 +1,4 @@
-const CACHE_NAME = 'scheduler-v10'; // 버전을 대폭 높여 강제 갱신 유도
+const CACHE_NAME = 'scheduler-v11'; // 버전을 올려 강제 갱신
 const ASSETS = [
     './',
     './index.html',
