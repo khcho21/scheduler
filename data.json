@@ -43,19 +43,19 @@
   },
   "2026-03-13": {
     "clockIn": "05:58:00",
-    "clockOut": "20:30:00",
+    "clockOut": "20:35:00",
     "note": "",
     "type": ""
   },
   "2026-03-16": {
-    "clockIn": "10:00:00",
+    "clockIn": "09:58:00",
     "clockOut": "22:00:00",
     "note": "",
     "type": ""
   },
   "2026-03-17": {
-    "clockIn": "07:00:00",
-    "clockOut": "21:30:00",
+    "clockIn": "06:30:00",
+    "clockOut": "20:48:00",
     "note": "",
     "type": ""
   },
@@ -235,6 +235,12 @@
     "note": "",
     "type": ""
   },
+  "2026-05-04": {
+    "type": "최소근로",
+    "clockIn": null,
+    "clockOut": null,
+    "note": "샌드위치데이"
+  },
   "2026-05-06": {
     "clockIn": "09:00:00",
     "clockOut": "22:00:00",
@@ -252,5 +258,101 @@
     "clockOut": "13:00:00",
     "note": "",
     "type": ""
+  },
+  "2026-05-11": {
+    "type": "",
+    "clockIn": "11:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-12": {
+    "type": "",
+    "clockIn": "09:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-13": {
+    "type": "",
+    "clockIn": "09:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-14": {
+    "type": "",
+    "clockIn": "09:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-15": {
+    "type": "",
+    "clockIn": "08:00:00",
+    "clockOut": "13:00:00",
+    "note": ""
+  },
+  "2026-05-18": {
+    "type": "",
+    "clockIn": "11:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-19": {
+    "type": "",
+    "clockIn": "09:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-20": {
+    "type": "",
+    "clockIn": "09:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-21": {
+    "type": "",
+    "clockIn": "09:00:00",
+    "clockOut": "22:00:00",
+    "note": ""
+  },
+  "2026-05-22": {
+    "type": "",
+    "clockIn": "08:00:00",
+    "clockOut": "13:00:00",
+    "note": ""
+  },
+  "2026-05-26": {
+    "type": "반차",
+    "clockIn": null,
+    "clockOut": null,
+    "note": ""
+  },
+  "2026-05-27": {
+    "type": "봉사",
+    "clockIn": null,
+    "clockOut": null,
+    "note": ""
+  },
+  "2026-05-28": {
+    "type": "반차",
+    "clockIn": null,
+    "clockOut": null,
+    "note": ""
+  },
+  "2026-05-29": {
+    "type": "최소근로",
+    "clockIn": null,
+    "clockOut": null,
+    "note": "아내 생일"
+  },
+  "2026-09-02": {
+    "type": "최소근로",
+    "clockIn": null,
+    "clockOut": null,
+    "note": "세브란스"
+  },
+  "2026-09-16": {
+    "type": "최소근로",
+    "clockIn": null,
+    "clockOut": null,
+    "note": "세브란스"
   }
 }
