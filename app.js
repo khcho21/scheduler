@@ -312,25 +312,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!vacationTotalEl || !vacationRemainingEl) return;
 
         let usedDays = 0;
+        let details = []; // 디버깅 상세 내역
         const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth(); // 0(1월) ~ 11(12월)
         
-        // 데이터 전체를 순회하며 현재 연도의 휴가 사용량 합산
         Object.keys(data).forEach(dateStr => {
-            if (dateStr.startsWith('_')) return; // 설정값 제외
+            if (dateStr.startsWith('_')) return;
             
             const [y, m, d] = dateStr.split('-').map(Number);
-            if (y === currentYear) {
+            // 같은 연도이면서, 1월부터 현재 조회 중인 월(m-1)까지만 합산
+            if (y === currentYear && (m - 1) <= currentMonth) {
                 const entry = data[dateStr];
-                if (entry.type === '휴가') usedDays += 1;
-                else if (entry.type === '반차') usedDays += 0.5;
+                const type = entry.type || '';
+                
+                if (type === '휴가') {
+                    usedDays += 1;
+                    details.push(`${dateStr}: 1.0 (${type})`);
+                } else if (type === '반차' || type.includes('반차') || type === '휴가(4h)') {
+                    // '반차', '반차(4h)', '휴가(4h)'인 경우만 0.5일로 인정
+                    usedDays += 0.5;
+                    details.push(`${dateStr}: 0.5 (${type})`);
+                }
             }
         });
+        
+        console.group(`${currentYear}년 ${currentMonth + 1}월까지 누적 휴가 사용 내역 (총 ${usedDays}일)`);
+        details.forEach(line => console.log(line));
+        console.groupEnd();
         
         const budget = data._config.vacationBudget || 0;
         const remaining = budget - usedDays;
         
-        vacationTotalEl.innerText = `${budget}d`;
-        vacationRemainingEl.innerText = `${remaining}d`;
+        // 소수점이 있을 경우 0.5 단위이므로 깔끔하게 표시
+        const displayRemaining = Number.isInteger(remaining) ? remaining : remaining.toFixed(1);
+        const displayBudget = Number.isInteger(budget) ? budget : budget.toFixed(1);
+
+        vacationTotalEl.innerText = `${displayBudget}d`;
+        vacationRemainingEl.innerText = `${displayRemaining}d`;
     }
 
     function render() {
