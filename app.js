@@ -23,9 +23,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!remote) return local;
         const merged = { ...local };
         for (const key in remote) {
-            // 로컬에 해당 날짜 기록이 없거나, 원격의 수정 시간이 더 최신인 경우에만 덮어씀
-            if (!local[key] || (remote[key].updatedAt || 0) > (local[key].updatedAt || 0)) {
+            if (!local[key]) {
                 merged[key] = remote[key];
+            } else {
+                // 타임스탬프 기준으로 어느 쪽이 더 최신인지 판단
+                const localT = local[key].updatedAt || 0;
+                const remoteT = remote[key].updatedAt || 0;
+                if (remoteT >= localT) {
+                    merged[key] = remote[key];
+                }
             }
         }
         return merged;
@@ -113,52 +119,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const dbRef = firebase.database().ref('users/' + syncCode);
         
-        // 원격 데이터 수신 로직 (삭제 동기화 지원)
+        // 원격 데이터 수신 로직 (tombstone 방식)
         dbRef.on('value', (snapshot) => {
             const remoteData = snapshot.val();
             if (remoteData) {
-                console.log('클라우드 데이터 수신, 병합 시작...');
+                console.log('클라우드 데이터 수신 및 병합...');
                 const prevDataStr = JSON.stringify(data);
-                
-                // 원격 데이터를 기준으로 스마트 병합
-                // 1. 원격에 있는 키: updatedAt이 더 최신인 것을 선택
-                // 2. 로컬에만 있는 키: 최근 30초 안에 수정된 경우 유지 (아직 업로드 안 된 경우)
-                //    → 그 외에는 삭제된 것으로 간주하여 제거
-                const now = Date.now();
-                const merged = { ...remoteData }; // 원격 데이터를 기준으로 시작
-                
-                for (const key in data) {
-                    if (key.startsWith('_')) continue; // 설정값은 별도 처리
-                    if (!remoteData[key]) {
-                        // 원격에 없는 키: 로컬에서 30초 이내에 수정된 경우만 유지
-                        const localUpdatedAt = data[key].updatedAt || 0;
-                        if (now - localUpdatedAt < 30000) {
-                            merged[key] = data[key]; // 아직 업로드 안 된 최신 데이터 유지
-                        }
-                        // 30초 이상 지났으면 원격에서 삭제된 것으로 간주 → merged에 포함 안 함
-                    } else {
-                        // 로컬과 원격 모두 있는 경우: 더 최신 것 채택
-                        const localT = data[key].updatedAt || 0;
-                        const remoteT = remoteData[key].updatedAt || 0;
-                        if (localT > remoteT) {
-                            merged[key] = data[key];
-                        }
-                    }
-                }
-                
-                // _config는 별도로 처리 (더 최신 것 채택)
-                if (remoteData._config) {
-                    const localT = (data._config && data._config.updatedAt) || 0;
-                    const remoteT = remoteData._config.updatedAt || 0;
-                    merged._config = localT > remoteT ? data._config : remoteData._config;
-                } else {
-                    merged._config = data._config;
-                }
-                
-                data = merged;
-                
+                data = mergeData(data, remoteData);
                 if (JSON.stringify(data) !== prevDataStr) {
-                    console.log('데이터 병합 완료, 로컬 저장 및 화면 갱신');
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                     render();
                 }
@@ -362,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 같은 연도이면서, 1월부터 현재 조회 중인 월(m-1)까지만 합산
             if (y === currentYear && (m - 1) <= currentMonth) {
                 const entry = data[dateStr];
+                if (entry._deleted) return; // tombstone 항목 건너뜀
                 const type = entry.type || '';
                 
                 if (type === '휴가') {
@@ -455,8 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dayDiv.innerHTML += `<div class="holiday-name">${dayHolidays[dateStr]}</div>`;
         }
 
-        if (data[dateStr]) {
+        if (data[dateStr] && !data[dateStr]._deleted) {
             const entry = data[dateStr];
+
             const ackTime = calculateAcknowledgedTime(dateStr, entry);
             
             if (entry.type) {
@@ -624,23 +594,16 @@ document.addEventListener('DOMContentLoaded', () => {
     modalCancelBtn.onclick = () => { editModal.style.display = 'none'; };
     
     modalDeleteBtn.addEventListener('click', () => {
-        console.log('삭제 버튼 클릭됨:', selectedDateStr);
-        if (!selectedDateStr) {
-            console.error('삭제할 날짜가 선택되지 않았습니다.');
-            return;
-        }
+        if (!selectedDateStr) return;
         
         if (confirm(`${selectedDateStr}의 모든 기록을 삭제하시겠습니까?`)) {
-            delete data[selectedDateStr];
+            // Tombstone 패턴: 실제 삭제 대신 삭제 마커를 남김
+            data[selectedDateStr] = { 
+                _deleted: true, 
+                updatedAt: Date.now() 
+            };
             
-            // 삭제 시 클라우드에서도 해당 노드 제거
-            if (isSyncEnabled && window.firebase && syncCode) {
-                firebase.database().ref('users/' + syncCode).child(selectedDateStr).remove()
-                    .then(() => console.log('클라우드 데이터 삭제 완료'))
-                    .catch(err => console.error('클라우드 삭제 실패:', err));
-            }
-            
-            saveData(false); // 로컬 저장 및 렌더링 (클라우드 전체 푸시는 생략)
+            saveData(selectedDateStr); // Firebase에 tombstone을 즉시 동기화
             editModal.style.display = 'none';
         }
     });
