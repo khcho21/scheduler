@@ -227,6 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function calculateAcknowledgedTime(dateStr, entry) {
         if (!entry) return 0;
+        // FutureLink 근무시간 탭에서 보낸 인정 시간(초)이 있으면 그대로 쓴다
+        if (typeof entry.ackSeconds === 'number') return entry.ackSeconds;
         const type = entry.type || '';
         
         if (['출장', '휴가', '공가', '병가'].includes(type)) return 8 * 3600;
@@ -621,6 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!data[selectedDateStr] || data[selectedDateStr]._deleted) {
             data[selectedDateStr] = {};
         }
+        delete data[selectedDateStr].ackSeconds; // 여기서 직접 고치면 보내온 인정 시간을 버리고 다시 계산한다
         data[selectedDateStr].type = inputType.value;
         data[selectedDateStr].clockIn = ci;
         data[selectedDateStr].clockOut = co;
